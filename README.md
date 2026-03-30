@@ -50,4 +50,4 @@ Since this extension is loaded locally, you need to enable Developer Mode in Chr
 
 **© 2026 Brennan Shea. All rights reserved.** Original concept by **James Blasdel**.
 
-Small-scale, personal, non-commercial use is permitted (e.g., individual users or single classroom settings). Large-scale deployment, commercial use, or acquisition by any entity requires a separate written agreement with the owner. See the [LICENSE](LICENSE) file for full terms.
+Small-scale, personal, non-commercial use is permitted (e.g., individual users or single classroom settings). Large-scale deployment, commercial use, or acquisition by any entity requires a separate written agreement with Brennan Shea. See the [LICENSE](LICENSE) file for full terms.
