@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Virtual Sensei",
+  "version": "1.0",
+  "description": "An AI-powered Socratic tutor for Code Ninjas IMPACT.",
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "scripting",
+    "tabs",
+    "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "icons": {
+    "16": "icon128.png",
+    "48": "icon128.png",
+    "128": "icon128.png"
+  },
+  "action": {
+    "default_title": "Open Virtual Sensei",
+    "default_icon": "icon128.png"
+  }
+}
