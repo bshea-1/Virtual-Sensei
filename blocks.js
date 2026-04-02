@@ -120,7 +120,7 @@ MATH (#A55EEA):
   - min of [] and []
   - max of [] and []
   - constrain [] between [] and []
-  - % chance
+  - % chance (NOTE: This block is strictly in the MATH category)
 
 ANIMATION (#03AA74):
   - animate mySprite with frames [] interval [] ms

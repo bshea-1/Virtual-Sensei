@@ -333,10 +333,12 @@ function addMessageToChat(text, senderClass, isError = false) {
   // Parser for virtual UI elements
   formattedText = formattedText.replace(/\[\[\s*(?:([^:\]]+)\s*:\s*)?([^\]]+?)\s*\]\]/gi, (match, category, textContent) => {
     const catLower = (category || textContent).trim().toLowerCase();
+    const textLower = textContent.toLowerCase();
 
     // Default to the text itself if category is 'Action' or unrecognized, to not break existing matches
     let cssClass = 'mc-default';
-    if (catLower.includes('sprite')) cssClass = 'mc-sprites';
+    if (textLower.includes('% chance') || catLower.includes('% chance')) cssClass = 'mc-math';
+    else if (catLower.includes('sprite')) cssClass = 'mc-sprites';
     else if (catLower.includes('controller')) cssClass = 'mc-controller';
     else if (catLower.includes('game')) cssClass = 'mc-game';
     else if (catLower.includes('music')) cssClass = 'mc-music';
