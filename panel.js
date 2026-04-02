@@ -14,6 +14,7 @@ let currentCaptureDataUrl = null;
 let conversationHistory = [];
 let displayMessages = [];
 let isBoostMode = false;
+let isGenerating = false;
 
 const API_MODELS = [
   'gemini-flash-lite-latest',
@@ -27,6 +28,7 @@ const promptInput = document.getElementById('prompt-input');
 const sendBtn = document.getElementById('send-btn');
 const refreshBtn = document.getElementById('refresh-btn');
 const resolveBtn = document.getElementById('resolve-btn');
+const quickStarters = document.getElementById('quick-starters');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', async () => {
@@ -65,11 +67,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (promptInput) {
         promptInput.disabled = false;
         promptInput.placeholder = "Ask the Virtual Sensei a question...";
+        setTimeout(() => promptInput.focus(), 10);
       }
 
       const initialMsg = `<p>Hey Ninja! 🥷 I'm your Virtual Sensei. Tell me what you're working on, and we'll figure it out together!</p>`;
       addMessageDirect(initialMsg, 'sensei', false);
       saveSession();
+      updateQuickStarters();
     });
   }
 
@@ -87,6 +91,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (promptInput) {
         promptInput.disabled = false;
         promptInput.placeholder = "Ask the Virtual Sensei a question...";
+        setTimeout(() => promptInput.focus(), 10);
       }
 
       chrome.runtime.sendMessage({ action: 'TRIGGER_CLOSE_HELP' }).catch(() => { });
@@ -97,23 +102,57 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Set up quick starters
+  if (quickStarters) {
+    const chips = quickStarters.querySelectorAll('.starter-chip');
+    chips.forEach(chip => {
+      chip.addEventListener('click', () => {
+        promptInput.value = chip.textContent.trim();
+        handleSendPrompt();
+      });
+    });
+  }
+
   // Send Prompt (Enter key without shift)
   promptInput.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229) return; // Handle IME seamlessly
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSendPrompt();
+      if (!isGenerating && !sendBtn.disabled) {
+        handleSendPrompt();
+      }
     }
   });
 
   // Auto-resize textarea
   promptInput.addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = (this.scrollHeight) + 'px';
+    this.style.height = 'auto'; // Reset height first
+    const computedHeight = Math.min(this.scrollHeight, 120);
+    this.style.height = computedHeight + 'px';
   });
 
   // Send Prompt (Button click)
-  sendBtn.addEventListener('click', handleSendPrompt);
+  sendBtn.addEventListener('click', () => {
+    if (!isGenerating && !sendBtn.disabled) {
+      handleSendPrompt();
+    }
+  });
+
+  if (!isBoostMode) {
+    setTimeout(() => { if (promptInput) promptInput.focus(); }, 10);
+  }
+  updateQuickStarters();
 });
+
+function updateQuickStarters() {
+  if (!quickStarters) return;
+  // If there are no user messages, show suggestions
+  if (conversationHistory.length === 0) {
+    quickStarters.classList.remove('hidden');
+  } else {
+    quickStarters.classList.add('hidden');
+  }
+}
 
 async function saveSession() {
   try {
@@ -171,6 +210,7 @@ async function captureTabSilently() {
 }
 
 async function handleSendPrompt() {
+  if (isGenerating || sendBtn.disabled) return;
   const prompt = promptInput.value.trim();
 
   if (!prompt) return;
@@ -180,13 +220,23 @@ async function handleSendPrompt() {
     return;
   }
 
+  isGenerating = true;
+
+  // Remove any previous error message from screen so it's clean
+  const errorElements = chatContainer.querySelectorAll('.error-msg');
+  errorElements.forEach(el => el.remove());
+  displayMessages = displayMessages.filter(msg => !msg.isError);
+  saveSession();
+
   // Add user message to UI
   let displayHTML = `<p>${escapeHtml(prompt).replace(/\n/g, '<br>')}</p>`;
-  addMessageDirect(displayHTML, 'student', false);
+  const studentMsgResult = addMessageDirect(displayHTML, 'student', false);
 
+  const originalPrompt = promptInput.value;
   promptInput.value = '';
-  promptInput.style.height = 'auto';
+  promptInput.dispatchEvent(new Event('input', { bubbles: true }));
   sendBtn.disabled = true;
+  updateQuickStarters();
 
   // Add a loading indicator
   const loadingElement = addLoadingIndicator();
@@ -227,9 +277,27 @@ async function handleSendPrompt() {
 
   } catch (error) {
     removeLoadingIndicator(loadingElement);
-    addMessageToChat(`Error: ${error.message}`, 'sensei', true);
+    
+    // Remove the visually stuck student message
+    if (studentMsgResult && studentMsgResult.element && studentMsgResult.element.parentNode) {
+       studentMsgResult.element.parentNode.removeChild(studentMsgResult.element);
+    }
+    const idx = displayMessages.indexOf(studentMsgResult.msgObj);
+    if (idx !== -1) {
+       displayMessages.splice(idx, 1);
+       saveSession();
+    }
+
+    addMessageToChat(`Error: ${error.message}. Please try again!`, 'sensei', true);
+    promptInput.value = originalPrompt;
+    promptInput.dispatchEvent(new Event('input', { bubbles: true }));
+    updateQuickStarters();
   } finally {
-    if (!isBoostMode) sendBtn.disabled = false;
+    isGenerating = false;
+    if (!isBoostMode) {
+      sendBtn.disabled = false;
+      setTimeout(() => { if (promptInput) promptInput.focus(); }, 10);
+    }
   }
 }
 
@@ -242,8 +310,11 @@ function addMessageDirect(htmlContent, senderClass, isError = false) {
   scrollToBottom();
 
   // Track for persistence
-  displayMessages.push({ html: htmlContent, senderClass, isError });
+  const msgObj = { html: htmlContent, senderClass, isError };
+  displayMessages.push(msgObj);
   saveSession();
+
+  return { element: msgDiv, msgObj: msgObj };
 }
 
 function addMessageToChat(text, senderClass, isError = false) {
@@ -364,36 +435,17 @@ function animateTyping(htmlContent, senderClass) {
 
 function addLoadingIndicator() {
   const loadingDiv = document.createElement('div');
-  loadingDiv.classList.add('loading');
+  loadingDiv.classList.add('typing-bubble');
   loadingDiv.id = 'loading-indicator-div';
-  loadingDiv.innerHTML = 'Sensei thinking... <span id="loading-pct" style="margin-left: 4px; font-weight: bold; color: var(--brand);">0%</span> <span class="dots" style="margin-left: 4px;">💭</span>';
+  loadingDiv.innerHTML = `💬 <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>`;
   chatContainer.appendChild(loadingDiv);
   scrollToBottom();
-
-  let currentProgress = 0;
-  const intervalId = setInterval(() => {
-    currentProgress += Math.floor(Math.random() * 11) + 2;
-    if (currentProgress > 99) currentProgress = 99;
-    const pctSpan = document.getElementById('loading-pct');
-    if (pctSpan) pctSpan.textContent = currentProgress + '%';
-  }, 150);
-
-  loadingDiv.dataset.intervalId = intervalId.toString();
   return loadingDiv;
 }
 
 function removeLoadingIndicator(element) {
-  if (element) {
-    if (element.dataset.intervalId) {
-      clearInterval(Number(element.dataset.intervalId));
-    }
-    if (element.parentNode) {
-      const pctSpan = element.querySelector('#loading-pct');
-      if (pctSpan) pctSpan.textContent = '100%';
-      setTimeout(() => {
-        if (element.parentNode) element.parentNode.removeChild(element);
-      }, 300);
-    }
+  if (element && element.parentNode) {
+    element.parentNode.removeChild(element);
   }
 }
 
