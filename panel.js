@@ -253,9 +253,9 @@ async function handleSendPrompt() {
     );
 
     let requiredBoost = false;
-    if (responseText.includes('[NINJA_BOOST]')) {
+    if (/\[\[?\s*NINJA_BOOST\s*\]?\]/i.test(responseText)) {
       requiredBoost = true;
-      responseText = responseText.replace(/\[NINJA_BOOST\]/g, '').trim();
+      responseText = responseText.replace(/\[\[?\s*NINJA_BOOST\s*\]?\]/gi, '').trim();
     }
 
     removeLoadingIndicator(loadingElement);
@@ -331,8 +331,8 @@ function addMessageToChat(text, senderClass, isError = false) {
   }
 
   // Parser for virtual UI elements
-  formattedText = formattedText.replace(/\[\[([A-Za-z]+):\s*([^\]]+)\]\]/gi, (match, category, textContent) => {
-    const catLower = category.trim().toLowerCase();
+  formattedText = formattedText.replace(/\[\[\s*(?:([^:\]]+)\s*:\s*)?([^\]]+?)\s*\]\]/gi, (match, category, textContent) => {
+    const catLower = (category || textContent).trim().toLowerCase();
 
     // Default to the text itself if category is 'Action' or unrecognized, to not break existing matches
     let cssClass = 'mc-default';
